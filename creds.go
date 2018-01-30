@@ -130,7 +130,7 @@ func (p *AwsCacheCredProvider) getProfileConfig(profile string) (*profileConfig,
 		mfaSerial := section.Key("mfa_serial").String()
 		if len(mfaSerial) > 0 {
 			mfaSecret := credsSection.Key("mfa_secret").String()
-			mfaCode, err := p.MfaCodeProvider(mfaSecret)
+			mfaCode := func() string { s, _ := p.MfaCodeProvider(mfaSecret); return s }
 			if err != nil { return nil, err }
 
 			creds, err = mfaAuthenticatedCredentials(creds, mfaSerial, mfaCode, p.Duration)
@@ -195,7 +195,7 @@ type cachedSessionTokenResponse struct {
 	}
 }
 
-func mfaAuthenticatedCredentials(sourceCreds credentials.Value, mfaSerial, mfaCode string, duration time.Duration) (credentials.Value, error) {
+func mfaAuthenticatedCredentials(sourceCreds credentials.Value, mfaSerial string, mfaCode func() string, duration time.Duration) (credentials.Value, error) {
 	sess := session.Must(session.NewSession(&aws.Config{
 		Credentials: credentials.NewStaticCredentials(
 			sourceCreds.AccessKeyID,
@@ -207,9 +207,10 @@ func mfaAuthenticatedCredentials(sourceCreds credentials.Value, mfaSerial, mfaCo
 	cached := cachedMfaAuthenticatedCredentials(mfaSerial)
 
 	if cached == nil {
+		code := mfaCode()
 		input := &sts.GetSessionTokenInput{
 			SerialNumber: &mfaSerial,
-			TokenCode: &mfaCode,
+			TokenCode: &code,
 			DurationSeconds: aws.Int64(int64(duration.Seconds())),
 		}
 
