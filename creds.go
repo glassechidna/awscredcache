@@ -2,6 +2,7 @@ package awscredcache
 
 import (
 	"time"
+	"github.com/aws/aws-sdk-go/aws/defaults"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
@@ -56,6 +57,20 @@ func (p *AwsCacheCredProvider) IsExpired() bool {
 func (p *AwsCacheCredProvider) Region() string {
 	return p.getRegion(p.profile)
 }
+
+func (p *AwsCacheCredProvider) WrapInChain() credentials.Provider {
+	def := defaults.Get()
+
+	// this is stolen from the aws sdk
+	return &credentials.ChainProvider{
+		VerboseErrors: aws.BoolValue(def.Config.CredentialsChainVerboseErrors),
+		Providers: []credentials.Provider{
+			&credentials.EnvProvider{},
+			&credentials.SharedCredentialsProvider{Filename: "", Profile: ""},
+			p,
+			defaults.RemoteCredProvider(*def.Config, def.Handlers),
+		},
+	}}
 
 type awsConfigFiles struct {
 	cfg *ini.File
