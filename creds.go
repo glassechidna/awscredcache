@@ -66,8 +66,8 @@ func (p *AwsCacheCredProvider) WrapInChain() credentials.Provider {
 		VerboseErrors: aws.BoolValue(def.Config.CredentialsChainVerboseErrors),
 		Providers: []credentials.Provider{
 			&credentials.EnvProvider{},
-			&credentials.SharedCredentialsProvider{Filename: "", Profile: ""},
 			p,
+			&credentials.SharedCredentialsProvider{Filename: "", Profile: ""},
 			defaults.RemoteCredProvider(*def.Config, def.Handlers),
 		},
 	}}
