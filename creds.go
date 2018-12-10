@@ -118,7 +118,7 @@ func (p *AwsCacheCredProvider) getProfileConfig(profile string) (*profileConfig,
 		roleArn := section.Key("role_arn").String()
 		if len(roleArn) == 0 { return nil, errors.New("empty role arn") }
 
-		roleCreds, err := roleCredentials(sourceConfig.Credentials, roleArn, sourceProfileName)
+		roleCreds, err := roleCredentials(sourceConfig.Credentials, roleArn, profile)
 		if err != nil { return nil, err }
 
 		return &profileConfig{
@@ -161,7 +161,7 @@ func (p *AwsCacheCredProvider) getProfileConfig(profile string) (*profileConfig,
 	}
 }
 
-func roleCredentials(sourceCreds credentials.Value, roleArn, sourceProfileName string) (credentials.Value, error) {
+func roleCredentials(sourceCreds credentials.Value, roleArn, profile string) (credentials.Value, error) {
 	sess := session.Must(session.NewSession(&aws.Config{
 		Credentials: credentials.NewStaticCredentials(
 			sourceCreds.AccessKeyID,
@@ -171,7 +171,7 @@ func roleCredentials(sourceCreds credentials.Value, roleArn, sourceProfileName s
 
 	api := sts.New(sess)
 
-	roleSessionName := fmt.Sprintf("%s-%d", sourceProfileName, time.Now().Second())
+	roleSessionName := fmt.Sprintf("%s-%d", profile, time.Now().Second())
 	resp, err := api.AssumeRole(&sts.AssumeRoleInput{
 		RoleArn: aws.String(roleArn),
 		RoleSessionName: &roleSessionName,
