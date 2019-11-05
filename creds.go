@@ -147,7 +147,6 @@ func (p *AwsCacheCredProvider) getProfileConfig(profile string) (*profileConfig,
 		if len(mfaSerial) > 0 {
 			mfaSecret := credsSection.Key("mfa_secret").String()
 			mfaCode := func() string { s, _ := p.MfaCodeProvider(mfaSecret); return s }
-			if err != nil { return nil, err }
 
 			creds, err = mfaAuthenticatedCredentials(creds, mfaSerial, mfaCode, p.Duration)
 			if err != nil { return nil, err }
