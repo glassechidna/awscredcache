@@ -233,7 +233,7 @@ func mfaAuthenticatedCredentials(sourceCreds credentials.Value, mfaSerial string
 		requestId := ""
 		headers := map[string]string{}
 
-		resp, _ := api.GetSessionTokenWithContext(context.Background(), input, func(r *request.Request) {
+		resp, err := api.GetSessionTokenWithContext(context.Background(), input, func(r *request.Request) {
 			r.Handlers.Complete.PushBack(func(req *request.Request) {
 				statusCode = req.HTTPResponse.StatusCode
 				requestId = req.RequestID
@@ -243,6 +243,9 @@ func mfaAuthenticatedCredentials(sourceCreds credentials.Value, mfaSerial string
 				}
 			})
 		})
+		if err != nil {
+			return credentials.Value{ProviderName: AwscredcacheProvider}, err
+		}
 
 		c := resp.Credentials
 
