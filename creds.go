@@ -25,17 +25,17 @@ const AwscredcacheProvider = "AwscredcacheProvider"
 
 type AwsCacheCredProvider struct {
 	MfaCodeProvider func(string) (string, error)
-	Duration time.Duration
-	profile string
-	cfg awsConfigFiles
+	Duration        time.Duration
+	profile         string
+	cfg             awsConfigFiles
 }
 
 func NewAwsCacheCredProvider(profile string) *AwsCacheCredProvider {
 	return &AwsCacheCredProvider{
-		profile: profile,
-		cfg: loadConfig(),
+		profile:  profile,
+		cfg:      loadConfig(),
 		Duration: 12 * 3600 * time.Second,
-		MfaCodeProvider: func(_ string) (string, error ) {
+		MfaCodeProvider: func(_ string) (string, error) {
 			return stscreds.StdinTokenProvider()
 		},
 	}
@@ -70,16 +70,17 @@ func (p *AwsCacheCredProvider) WrapInChain() credentials.Provider {
 			&credentials.SharedCredentialsProvider{Filename: "", Profile: ""},
 			defaults.RemoteCredProvider(*def.Config, def.Handlers),
 		},
-	}}
+	}
+}
 
 type awsConfigFiles struct {
-	cfg *ini.File
+	cfg  *ini.File
 	cred *ini.File
 }
 
 type profileConfig struct {
-	Name string
-	Region string
+	Name        string
+	Region      string
 	Credentials credentials.Value
 }
 
@@ -87,7 +88,9 @@ func (p *AwsCacheCredProvider) getRegion(profile string) string {
 	section, err := p.cfg.cfg.GetSection(fmt.Sprintf("profile %s", profile))
 	if err != nil {
 		section, err = p.cfg.cfg.GetSection(profile)
-		if err != nil { return "" }
+		if err != nil {
+			return ""
+		}
 	}
 
 	return section.Key("region").String()
@@ -97,7 +100,9 @@ func (p *AwsCacheCredProvider) getProfileConfig(profile string) (*profileConfig,
 	section, err := p.cfg.cfg.GetSection(fmt.Sprintf("profile %s", profile))
 	if err != nil {
 		section, err = p.cfg.cfg.GetSection(profile)
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 	}
 
 	region := p.getRegion(profile)
@@ -108,7 +113,9 @@ func (p *AwsCacheCredProvider) getProfileConfig(profile string) (*profileConfig,
 	if hasSourceProfile {
 		sourceProfileName := sourceProfile.String()
 		sourceConfig, err := p.getProfileConfig(sourceProfileName)
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 
 		sourceRegion := sourceConfig.Region
 		if len(region) == 0 {
@@ -116,10 +123,14 @@ func (p *AwsCacheCredProvider) getProfileConfig(profile string) (*profileConfig,
 		}
 
 		roleArn := section.Key("role_arn").String()
-		if len(roleArn) == 0 { return nil, errors.New("empty role arn") }
+		if len(roleArn) == 0 {
+			return nil, errors.New("empty role arn")
+		}
 
 		roleCreds, err := roleCredentials(sourceConfig.Credentials, roleArn, profile)
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 
 		return &profileConfig{
 			Name:        profile,
@@ -128,14 +139,20 @@ func (p *AwsCacheCredProvider) getProfileConfig(profile string) (*profileConfig,
 		}, nil
 	} else {
 		credsSection, err := p.cfg.cred.GetSection(profile)
-		if err != nil { return nil, err }
+		if err != nil {
+			return nil, err
+		}
 
 		id := credsSection.Key("aws_access_key_id").String()
 		secret := credsSection.Key("aws_secret_access_key").String()
 		token := credsSection.Key("aws_session_token").String()
 
-		if len(id) == 0 { return nil, errors.New("empty access key id") }
-		if len(secret) == 0 { return nil, errors.New("empty secret access key") }
+		if len(id) == 0 {
+			return nil, errors.New("empty access key id")
+		}
+		if len(secret) == 0 {
+			return nil, errors.New("empty secret access key")
+		}
 		creds := credentials.Value{
 			ProviderName:    AwscredcacheProvider,
 			AccessKeyID:     id,
@@ -149,7 +166,9 @@ func (p *AwsCacheCredProvider) getProfileConfig(profile string) (*profileConfig,
 			mfaCode := func() string { s, _ := p.MfaCodeProvider(mfaSecret); return s }
 
 			creds, err = mfaAuthenticatedCredentials(creds, mfaSerial, mfaCode, p.Duration)
-			if err != nil { return nil, err }
+			if err != nil {
+				return nil, err
+			}
 		}
 
 		return &profileConfig{
@@ -172,7 +191,7 @@ func roleCredentials(sourceCreds credentials.Value, roleArn, profile string) (cr
 
 	roleSessionName := fmt.Sprintf("%s-%d", profile, time.Now().Second())
 	resp, err := api.AssumeRole(&sts.AssumeRoleInput{
-		RoleArn: aws.String(roleArn),
+		RoleArn:         aws.String(roleArn),
 		RoleSessionName: &roleSessionName,
 	})
 	if err != nil {
@@ -196,17 +215,17 @@ func loadConfig() awsConfigFiles {
 
 type cachedSessionTokenResponse struct {
 	MfaSerialNumber string
-	Credentials struct {
-		AccessKeyId string
+	Credentials     struct {
+		AccessKeyId     string
 		SecretAccessKey string
-		SessionToken string
-		Expiration time.Time
+		SessionToken    string
+		Expiration      time.Time
 	}
 	ResponseMetadata struct {
-		RetryAttempts int
+		RetryAttempts  int
 		HTTPStatusCode int
-		RequestId string
-		HTTPHeaders map[string]string
+		RequestId      string
+		HTTPHeaders    map[string]string
 	}
 }
 
@@ -224,8 +243,8 @@ func mfaAuthenticatedCredentials(sourceCreds credentials.Value, mfaSerial string
 	if cached == nil {
 		code := mfaCode()
 		input := &sts.GetSessionTokenInput{
-			SerialNumber: &mfaSerial,
-			TokenCode: &code,
+			SerialNumber:    &mfaSerial,
+			TokenCode:       &code,
 			DurationSeconds: aws.Int64(int64(duration.Seconds())),
 		}
 
@@ -268,10 +287,10 @@ func mfaAuthenticatedCredentials(sourceCreds credentials.Value, mfaSerial string
 				RequestId      string
 				HTTPHeaders    map[string]string
 			}{
-				RetryAttempts: 0,
+				RetryAttempts:  0,
 				HTTPStatusCode: statusCode,
-				RequestId: requestId,
-				HTTPHeaders: headers,
+				RequestId:      requestId,
+				HTTPHeaders:    headers,
 			},
 		}
 
