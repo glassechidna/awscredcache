@@ -11,6 +11,7 @@ import (
 	"github.com/aws/aws-sdk-go/aws/request"
 	"github.com/aws/aws-sdk-go/aws/session"
 	"github.com/aws/aws-sdk-go/service/sts"
+	"github.com/aws/aws-sdk-go/service/sts/stsiface"
 	"github.com/glassechidna/awscredcache/sneakyvendor/aws-shared-defaults"
 	"github.com/go-ini/ini"
 	"github.com/pkg/errors"
@@ -179,15 +180,24 @@ func (p *AwsCacheCredProvider) getProfileConfig(profile string) (*profileConfig,
 	}
 }
 
-func roleCredentials(sourceCreds credentials.Value, roleArn, profile string) (credentials.Value, error) {
-	sess := session.Must(session.NewSession(&aws.Config{
-		Credentials: credentials.NewStaticCredentials(
-			sourceCreds.AccessKeyID,
-			sourceCreds.SecretAccessKey,
-			sourceCreds.SessionToken),
-	}))
+func stsApiWithCreds(sourceCreds credentials.Value) stsiface.STSAPI {
+	static := credentials.NewStaticCredentials(
+		sourceCreds.AccessKeyID,
+		sourceCreds.SecretAccessKey,
+		sourceCreds.SessionToken,
+	)
 
-	api := sts.New(sess)
+	config := &aws.Config{Credentials: static}
+	if len(os.Getenv("AWSCREDCACHE_VERBOSE")) > 0 {
+		config.LogLevel = aws.LogLevel(aws.LogDebugWithHTTPBody)
+	}
+
+	sess := session.Must(session.NewSession(config))
+	return sts.New(sess)
+}
+
+func roleCredentials(sourceCreds credentials.Value, roleArn, profile string) (credentials.Value, error) {
+	api := stsApiWithCreds(sourceCreds)
 
 	roleSessionName := fmt.Sprintf("%s-%d", profile, time.Now().Second())
 	resp, err := api.AssumeRole(&sts.AssumeRoleInput{
@@ -230,13 +240,7 @@ type cachedSessionTokenResponse struct {
 }
 
 func mfaAuthenticatedCredentials(sourceCreds credentials.Value, mfaSerial string, mfaCode func() string, duration time.Duration) (credentials.Value, error) {
-	sess := session.Must(session.NewSession(&aws.Config{
-		Credentials: credentials.NewStaticCredentials(
-			sourceCreds.AccessKeyID,
-			sourceCreds.SecretAccessKey,
-			sourceCreds.SessionToken),
-	}))
-	api := sts.New(sess)
+	api := stsApiWithCreds(sourceCreds)
 
 	cached := cachedMfaAuthenticatedCredentials(mfaSerial)
 
