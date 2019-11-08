@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/aws/awserr"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws/credentials/stscreds"
 	"github.com/aws/aws-sdk-go/aws/defaults"
@@ -245,6 +246,9 @@ func mfaAuthenticatedCredentials(sourceCreds credentials.Value, mfaSerial string
 	cached := cachedMfaAuthenticatedCredentials(mfaSerial)
 
 	if cached == nil {
+		firstAttempt := true
+	tryagain:
+
 		code := mfaCode()
 		input := &sts.GetSessionTokenInput{
 			SerialNumber:    &mfaSerial,
@@ -267,6 +271,19 @@ func mfaAuthenticatedCredentials(sourceCreds credentials.Value, mfaSerial string
 			})
 		})
 		if err != nil {
+			if err, ok := err.(awserr.Error); ok {
+				if firstAttempt && strings.Contains(err.Message(), "MultiFactorAuthentication failed with invalid MFA one time pass code") {
+					timeSinceWindowStarted := time.Now().Second() % 30
+					waitTime := 35 - timeSinceWindowStarted
+					fmt.Fprintf(os.Stderr, "Access denied due to 'incorrect MFA code'. This can happen when the same code is used twice in a 30 second window. Waiting %d seconds and trying again.\n", waitTime)
+					time.Sleep(time.Second * time.Duration(waitTime))
+					firstAttempt = false
+					goto tryagain
+				}
+
+				fmt.Fprintln(os.Stderr, "Second attempt also failed. Error is not due to MFA code reuse.")
+			}
+
 			return credentials.Value{ProviderName: AwscredcacheProvider}, err
 		}
 
